@@ -13,6 +13,23 @@ TOR_NEW_CIRCUIT_PERIOD="${TOR_NEW_CIRCUIT_PERIOD:-30}"
 TOR_BOOTSTRAP_TIMEOUT="${TOR_BOOTSTRAP_TIMEOUT:-90}"
 NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
+APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
+
+if ! mkdir -p "$APP_STATE_DIR" 2>/dev/null; then
+  APP_STATE_DIR="/dev/shm/kioskuser"
+  mkdir -p "$APP_STATE_DIR"
+fi
+if [ ! -w "${HOME:-/home/kioskuser}" ]; then
+  export HOME="$APP_STATE_DIR/home"
+  mkdir -p "$HOME"
+fi
+
+VNC_DIR="${VNC_DIR:-$APP_STATE_DIR/.vnc}"
+FIREFOX_BASE="${FIREFOX_BASE:-$APP_STATE_DIR/.mozilla/firefox}"
+FIREFOX_PROFILE_DIR="$FIREFOX_BASE/lowmem.default"
+TOR_DATA_DIR="${TOR_DATA_DIR:-$APP_STATE_DIR/tor_data}"
+TOR_LOG_FILE="${TOR_LOG_FILE:-$APP_STATE_DIR/tor.log}"
+TORRC_FILE="${TORRC_FILE:-$APP_STATE_DIR/torrc}"
 
 XVFB_PID=""
 OPENBOX_PID=""
@@ -32,11 +49,11 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-mkdir -p "$HOME/.vnc"
-x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$HOME/.vnc/passwd" >/dev/null
+mkdir -p "$VNC_DIR"
+x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$VNC_DIR/passwd" >/dev/null
 
-mkdir -p "$HOME/.mozilla/firefox/lowmem.default"
-cat > "$HOME/.mozilla/firefox/profiles.ini" <<PROFILES
+mkdir -p "$FIREFOX_PROFILE_DIR"
+cat > "$FIREFOX_BASE/profiles.ini" <<PROFILES
 [Profile0]
 Name=default
 IsRelative=1
@@ -48,7 +65,7 @@ StartWithLastProfile=1
 Version=2
 PROFILES
 
-cat > "$HOME/.mozilla/firefox/lowmem.default/user.js" <<FIREFOX_PREFS
+cat > "$FIREFOX_PROFILE_DIR/user.js" <<FIREFOX_PREFS
 user_pref("browser.cache.disk.enable", false);
 user_pref("browser.sessionstore.interval", 600000);
 user_pref("browser.startup.page", 0);
@@ -71,7 +88,7 @@ sleep 1
 openbox-session &
 OPENBOX_PID=$!
 
-x11vnc -display "$DISPLAY" -rfbauth "$HOME/.vnc/passwd" -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage &
+x11vnc -display "$DISPLAY" -rfbauth "$VNC_DIR/passwd" -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage &
 X11VNC_PID=$!
 sleep 1
 
@@ -80,14 +97,13 @@ WEBSOCKIFY_PID=$!
 
 if [ "$ENABLE_TOR" = "true" ]; then
   echo "Configuring Tor service on SOCKS port ${TOR_SOCKS_PORT}..."
-  mkdir -p "$HOME/tor_data"
-  chmod 700 "$HOME/tor_data"
+  mkdir -p "$TOR_DATA_DIR"
+  chmod 700 "$TOR_DATA_DIR"
 
-  TOR_LOG_FILE="$HOME/tor.log"
   : > "$TOR_LOG_FILE"
 
-  cat > "$HOME/torrc" <<TORRC
-DataDirectory $HOME/tor_data
+  cat > "$TORRC_FILE" <<TORRC
+DataDirectory $TOR_DATA_DIR
 SocksPort 127.0.0.1:${TOR_SOCKS_PORT}
 MaxCircuitDirtiness ${TOR_MAX_CIRCUIT_DIRTINESS}
 NewCircuitPeriod ${TOR_NEW_CIRCUIT_PERIOD}
@@ -95,7 +111,7 @@ AvoidDiskWrites 1
 Log notice file ${TOR_LOG_FILE}
 TORRC
 
-  tor -f "$HOME/torrc" &
+  tor -f "$TORRC_FILE" &
   TOR_PID=$!
 
   echo "Tor bootstrap check started in background (web UI is available immediately)."
@@ -125,6 +141,6 @@ fi
 echo "Starting Firefox..."
 while true; do
   unset http_proxy https_proxy ftp_proxy all_proxy HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY no_proxy NO_PROXY
-  firefox-esr --new-instance --profile "$HOME/.mozilla/firefox/lowmem.default" || true
+  firefox-esr --new-instance --profile "$FIREFOX_PROFILE_DIR" || true
   sleep 1
 done

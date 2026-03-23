@@ -27,6 +27,7 @@ WORKDIR /home/kioskuser
 
 ENV DISPLAY=:99 \
     VNC_PASSWORD=securepass \
+    APP_STATE_DIR=/tmp/kioskuser \
     ENABLE_TOR=true \
     NOVNC_BIND=0.0.0.0 \
     NOVNC_PORT=8080 \
