@@ -15,6 +15,7 @@ NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
 FIREFOX_DISABLE_SANDBOX="${FIREFOX_DISABLE_SANDBOX:-true}"
+NOVNC_WEB_ROOT="${NOVNC_WEB_ROOT:-/usr/share/novnc}"
 
 if ! mkdir -p "$APP_STATE_DIR" 2>/dev/null; then
   APP_STATE_DIR="/dev/shm/kioskuser"
@@ -57,6 +58,9 @@ x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$VNC_DIR/passwd" >/dev/null
 mkdir -p /tmp/.X11-unix || true
 chmod 1777 /tmp/.X11-unix || true
 
+# Openbox on Debian emits noisy menu warnings when this is unset.
+export XDG_MENU_PREFIX="${XDG_MENU_PREFIX:-debian-}"
+
 mkdir -p "$FIREFOX_PROFILE_DIR"
 cat > "$FIREFOX_BASE/profiles.ini" <<PROFILES
 [Profile0]
@@ -97,7 +101,16 @@ x11vnc -display "$DISPLAY" -rfbauth "$VNC_DIR/passwd" -forever -shared -localhos
 X11VNC_PID=$!
 sleep 1
 
-websockify --web /usr/share/novnc "${NOVNC_BIND}:${NOVNC_PORT}" localhost:5900 &
+if [ ! -f "$NOVNC_WEB_ROOT/index.html" ]; then
+  if [ -f "$NOVNC_WEB_ROOT/vnc.html" ]; then
+    cp -f "$NOVNC_WEB_ROOT/vnc.html" "$NOVNC_WEB_ROOT/index.html"
+  elif [ -f "$NOVNC_WEB_ROOT/vnc_lite.html" ]; then
+    cp -f "$NOVNC_WEB_ROOT/vnc_lite.html" "$NOVNC_WEB_ROOT/index.html"
+  fi
+fi
+
+echo "noVNC UI path: http://${NOVNC_BIND}:${NOVNC_PORT}/vnc.html"
+websockify --web "$NOVNC_WEB_ROOT" "${NOVNC_BIND}:${NOVNC_PORT}" localhost:5900 &
 WEBSOCKIFY_PID=$!
 
 if [ "$ENABLE_TOR" = "true" ]; then
