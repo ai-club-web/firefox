@@ -1,0 +1,36 @@
+{
+  "policies": {
+    "Proxy": {
+      "Mode": "none",
+      "Locked": false
+    },
+    "DisableTelemetry": true,
+    "DisableFirefoxStudies": true,
+    "Preferences": {
+      "browser.cache.disk.enable": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "browser.tabs.unloadOnLowMemory": {
+        "Value": true,
+        "Status": "locked"
+      },
+      "dom.ipc.processCount": {
+        "Value": 1,
+        "Status": "locked"
+      },
+      "dom.ipc.processCount.webIsolated": {
+        "Value": 1,
+        "Status": "locked"
+      },
+      "fission.autostart": {
+        "Value": false,
+        "Status": "locked"
+      },
+      "toolkit.cosmeticAnimations.enabled": {
+        "Value": false,
+        "Status": "locked"
+      }
+    }
+  }
+}

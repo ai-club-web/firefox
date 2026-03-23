@@ -1,0 +1,20 @@
+# .trivyignore
+# This file tells Trivy to ignore specific CVEs that are unfixable or false positives.
+
+# --- CRITICALS marked as 'will_not_fix' or 'affected' (No patch available in Debian 12) ---
+CVE-2023-45853 # zlib1g - Debian marked as will_not_fix
+CVE-2025-55130 # libnode108 - Awaiting upstream patch
+CVE-2025-7458  # libsqlite3-0 - Awaiting upstream patch
+
+# --- HIGHS marked as 'will_not_fix' or 'fix_deferred' ---
+CVE-2023-39616 # libaom3
+CVE-2026-3184  # util-linux
+CVE-2024-38949 # libde265-0
+CVE-2024-38950 # libde265-0
+CVE-2026-1837  # libjxl0.7
+CVE-2025-23166 # libnode108
+CVE-2023-50782 # python3-cryptography
+CVE-2025-66471 # python3-urllib3
+CVE-2023-5574  # xvfb / xserver-common
+CVE-2024-7883  # libllvm15
+CVE-2026-0861  # libc6

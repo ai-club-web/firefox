@@ -1,0 +1,81 @@
+name: Build, Scan, and Push to Docker Hub
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      # Step 1: Build and load the image into the local runner (DO NOT PUSH YET)
+      - name: Build Docker image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true # This keeps the image local for Trivy to scan
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-target
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Step 2: Run Trivy Scan
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:scan-target'
+          format: 'table'
+          output: 'trivy-report.txt'
+          exit-code: '1' # This forces the pipeline to break if vulnerabilities are found
+          ignore-unfixed: true # Ignores vulnerabilities that don't have a patch available yet
+          vuln-type: 'os,library'
+          severity: 'HIGH,CRITICAL'
+          trivyignores: '.trivyignore'
+
+      # Step 3: Upload the Trivy report as an artifact
+      - name: Upload Trivy scan results to artifact
+        uses: actions/upload-artifact@v4
+        if: always() # Crucial: Uploads the report even if the previous step failed (broke the build)
+        with:
+          name: trivy-security-report
+          path: trivy-report.txt
+          retention-days: 14
+
+      # Step 4: If Trivy passed, push the image to Docker Hub
+      - name: Push Docker image to Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
