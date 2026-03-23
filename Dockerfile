@@ -1,9 +1,13 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    dbus-x11 \
     firefox-esr \
+    libegl1 \
+    libpci3 \
     novnc \
     openbox \
+    python3-xdg \
     tor \
     websockify \
     x11vnc \
@@ -34,9 +38,10 @@ ENV DISPLAY=:99 \
     ENABLE_TOR=true \
     NOVNC_BIND=0.0.0.0 \
     NOVNC_PORT=8080 \
-    SCREEN_WIDTH=1366 \
+    SCREEN_WIDTH=1368 \
     SCREEN_HEIGHT=768 \
     SCREEN_DEPTH=16 \
+    FIREFOX_DISABLE_SANDBOX=true \
     TOR_SOCKS_PORT=9050 \
     TOR_MAX_CIRCUIT_DIRTINESS=60 \
     TOR_NEW_CIRCUIT_PERIOD=30 \

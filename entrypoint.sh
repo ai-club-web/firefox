@@ -14,6 +14,7 @@ TOR_BOOTSTRAP_TIMEOUT="${TOR_BOOTSTRAP_TIMEOUT:-90}"
 NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
+FIREFOX_DISABLE_SANDBOX="${FIREFOX_DISABLE_SANDBOX:-true}"
 
 if ! mkdir -p "$APP_STATE_DIR" 2>/dev/null; then
   APP_STATE_DIR="/dev/shm/kioskuser"
@@ -52,6 +53,10 @@ trap cleanup EXIT INT TERM
 mkdir -p "$VNC_DIR"
 x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$VNC_DIR/passwd" >/dev/null
 
+# Xvfb cannot create this directory when running as non-root.
+mkdir -p /tmp/.X11-unix || true
+chmod 1777 /tmp/.X11-unix || true
+
 mkdir -p "$FIREFOX_PROFILE_DIR"
 cat > "$FIREFOX_BASE/profiles.ini" <<PROFILES
 [Profile0]
@@ -85,10 +90,10 @@ Xvfb "$DISPLAY" -screen 0 "${SCREEN_WIDTH}x${SCREEN_HEIGHT}x${SCREEN_DEPTH}" -no
 XVFB_PID=$!
 sleep 1
 
-openbox-session &
+openbox &
 OPENBOX_PID=$!
 
-x11vnc -display "$DISPLAY" -rfbauth "$VNC_DIR/passwd" -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage &
+x11vnc -display "$DISPLAY" -rfbauth "$VNC_DIR/passwd" -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage -no6 &
 X11VNC_PID=$!
 sleep 1
 
@@ -141,6 +146,13 @@ fi
 echo "Starting Firefox..."
 while true; do
   unset http_proxy https_proxy ftp_proxy all_proxy HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY no_proxy NO_PROXY
-  firefox-esr --new-instance --profile "$FIREFOX_PROFILE_DIR" || true
+  if [ "$FIREFOX_DISABLE_SANDBOX" = "true" ]; then
+    MOZ_DISABLE_CONTENT_SANDBOX=1 \
+    MOZ_DISABLE_GMP_SANDBOX=1 \
+    MOZ_DISABLE_RDD_SANDBOX=1 \
+    firefox-esr --new-instance --profile "$FIREFOX_PROFILE_DIR" || true
+  else
+    firefox-esr --new-instance --profile "$FIREFOX_PROFILE_DIR" || true
+  fi
   sleep 1
 done
