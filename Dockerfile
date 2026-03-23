@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 
+# Xvfb expects this socket directory to exist and be root-owned with sticky bit.
+RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
+
 RUN useradd -u 10001 -m -s /bin/bash kioskuser \
     && mkdir -p /usr/share/firefox-esr/distribution /usr/lib/firefox-esr/distribution \
     && cp /usr/share/novnc/vnc.html /usr/share/novnc/index.html \
