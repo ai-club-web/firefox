@@ -1,0 +1,7 @@
+SocksPort 9050
+SocksPolicy accept *
+SocksPolicy accept6 *
+Log notice file /var/log/tor/notices.log
+RunAsDaemon 1
+User tor
+DataDirectory /var/lib/tor
