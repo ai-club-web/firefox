@@ -14,7 +14,7 @@ TOR_BOOTSTRAP_TIMEOUT="${TOR_BOOTSTRAP_TIMEOUT:-90}"
 NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
 VNC_PORT="${VNC_PORT:-5900}"
-NOVNC_WS_PATH="${NOVNC_WS_PATH:-/}"
+NOVNC_WS_PATH="${NOVNC_WS_PATH:-/websockify}"
 NOVNC_AUTOCONNECT="${NOVNC_AUTOCONNECT:-false}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
 FIREFOX_DISABLE_SANDBOX="${FIREFOX_DISABLE_SANDBOX:-true}"
@@ -151,7 +151,11 @@ for _ in $(seq 1 20); do
 done
 
 echo "noVNC UI path: http://${NOVNC_BIND}:${NOVNC_PORT}/vnc.html?${NOVNC_QUERY}"
-websockify --web "$RUNTIME_NOVNC_ROOT" "${NOVNC_BIND}:${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" &
+WEBSOCKIFY_EXTRA_ARGS=()
+if websockify --help 2>&1 | grep -q -- "--websocket-only"; then
+  WEBSOCKIFY_EXTRA_ARGS+=(--websocket-only)
+fi
+websockify "${WEBSOCKIFY_EXTRA_ARGS[@]}" --web "$RUNTIME_NOVNC_ROOT" "${NOVNC_BIND}:${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" &
 WEBSOCKIFY_PID=$!
 
 if [ "$ENABLE_TOR" = "true" ]; then
