@@ -14,7 +14,7 @@ TOR_BOOTSTRAP_TIMEOUT="${TOR_BOOTSTRAP_TIMEOUT:-90}"
 NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
 VNC_PORT="${VNC_PORT:-5900}"
-NOVNC_WS_PATH="${NOVNC_WS_PATH:-websockify}"
+NOVNC_WS_PATH="${NOVNC_WS_PATH:-}"
 NOVNC_AUTOCONNECT="${NOVNC_AUTOCONNECT:-false}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
 FIREFOX_DISABLE_SANDBOX="${FIREFOX_DISABLE_SANDBOX:-true}"
@@ -123,7 +123,10 @@ for path in health healthz ready live; do
   printf "ok\n" > "$RUNTIME_NOVNC_ROOT/$path"
 done
 
-NOVNC_QUERY="resize=scale&path=${NOVNC_WS_PATH}"
+NOVNC_QUERY="resize=scale"
+if [ -n "$NOVNC_WS_PATH" ]; then
+  NOVNC_QUERY="${NOVNC_QUERY}&path=${NOVNC_WS_PATH}"
+fi
 if [ "$NOVNC_AUTOCONNECT" = "true" ]; then
   NOVNC_QUERY="autoconnect=1&${NOVNC_QUERY}"
 fi
