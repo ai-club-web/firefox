@@ -50,6 +50,9 @@ ENV DISPLAY=:99 \
     TOR_NEW_CIRCUIT_PERIOD=30 \
     TOR_BOOTSTRAP_TIMEOUT=90
 
+
+USER 10001
+
 EXPOSE 8080
 
 ENTRYPOINT ["/home/kioskuser/entrypoint.sh"]
