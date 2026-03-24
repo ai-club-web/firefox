@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Root phase: normalize runtime-owned paths, then drop privileges.
+if [ "$(id -u)" -eq 0 ]; then
+  install -d -m 1777 -o root -g root /tmp/.X11-unix
+  install -d -m 0755 -o 10001 -g 10001 /home/kioskuser
+  export HOME=/home/kioskuser
+  exec su -m -s /bin/bash kioskuser -c "/home/kioskuser/entrypoint.sh"
+fi
+
 export DISPLAY="${DISPLAY:-:99}"
 
 SCREEN_WIDTH="${SCREEN_WIDTH:-1366}"
@@ -55,8 +63,8 @@ mkdir -p "$VNC_DIR"
 x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$VNC_DIR/passwd" >/dev/null
 
 # Xvfb cannot create this directory when running as non-root.
+# Root phase above is responsible for creating root-owned /tmp/.X11-unix.
 mkdir -p /tmp/.X11-unix || true
-chmod 1777 /tmp/.X11-unix || true
 
 # Openbox on Debian emits noisy menu warnings when this is unset.
 export XDG_MENU_PREFIX="${XDG_MENU_PREFIX:-debian-}"
@@ -87,6 +95,7 @@ user_pref("network.proxy.type", 0);
 user_pref("network.proxy.socks", "");
 user_pref("network.proxy.socks_port", 0);
 user_pref("network.proxy.socks_remote_dns", false);
+user_pref("security.sandbox.content.level", 0);
 user_pref("toolkit.cosmeticAnimations.enabled", false);
 FIREFOX_PREFS
 
@@ -159,7 +168,11 @@ fi
 echo "Starting Firefox..."
 while true; do
   unset http_proxy https_proxy ftp_proxy all_proxy HTTP_PROXY HTTPS_PROXY FTP_PROXY ALL_PROXY no_proxy NO_PROXY
+  export LIBGL_ALWAYS_SOFTWARE=1
+  export MOZ_X11_EGL=0
+  export MOZ_WEBRENDER=0
   if [ "$FIREFOX_DISABLE_SANDBOX" = "true" ]; then
+    export MOZ_SANDBOX=0
     MOZ_DISABLE_CONTENT_SANDBOX=1 \
     MOZ_DISABLE_GMP_SANDBOX=1 \
     MOZ_DISABLE_RDD_SANDBOX=1 \

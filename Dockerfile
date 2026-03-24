@@ -20,7 +20,11 @@ RUN mkdir -p /tmp/.X11-unix && chmod 1777 /tmp/.X11-unix
 RUN useradd -u 10001 -m -s /bin/bash kioskuser \
     && mkdir -p /usr/share/firefox-esr/distribution /usr/lib/firefox-esr/distribution \
     && cp /usr/share/novnc/vnc.html /usr/share/novnc/index.html \
-    && sed -i "s/UI.initSetting('resize', 'off');/UI.initSetting('resize', 'scale');/g" /usr/share/novnc/app/ui.js
+    && sed -i "s/UI.initSetting('resize', 'off');/UI.initSetting('resize', 'scale');/g" /usr/share/novnc/app/ui.js \
+    && if [ -f /etc/xdg/openbox/menu.xml ] && [ ! -f /var/lib/openbox/debian-menu.xml ]; then \
+         mkdir -p /var/lib/openbox; \
+         ln -s /etc/xdg/openbox/menu.xml /var/lib/openbox/debian-menu.xml; \
+       fi
 
 COPY policies.json /usr/share/firefox-esr/distribution/policies.json
 COPY policies.json /usr/lib/firefox-esr/distribution/policies.json
@@ -28,7 +32,6 @@ COPY --chown=10001:10001 entrypoint.sh /home/kioskuser/entrypoint.sh
 
 RUN chmod +x /home/kioskuser/entrypoint.sh
 
-USER 10001
 ENV HOME=/home/kioskuser
 WORKDIR /home/kioskuser
 
