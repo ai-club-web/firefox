@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Root phase: normalize runtime-owned paths, then drop privileges.
-if [ "$(id -u)" -eq 0 ]; then
-  install -d -m 1777 -o root -g root /tmp/.X11-unix
-  install -d -m 0755 -o 10001 -g 10001 /home/kioskuser
-  export HOME=/home/kioskuser
-  exec su -m -s /bin/bash kioskuser -c "/home/kioskuser/entrypoint.sh"
-fi
-
 export DISPLAY="${DISPLAY:-:99}"
 
 SCREEN_WIDTH="${SCREEN_WIDTH:-1366}"
@@ -21,6 +13,9 @@ TOR_NEW_CIRCUIT_PERIOD="${TOR_NEW_CIRCUIT_PERIOD:-30}"
 TOR_BOOTSTRAP_TIMEOUT="${TOR_BOOTSTRAP_TIMEOUT:-90}"
 NOVNC_BIND="${NOVNC_BIND:-0.0.0.0}"
 NOVNC_PORT="${NOVNC_PORT:-8080}"
+VNC_PORT="${VNC_PORT:-5900}"
+NOVNC_WS_PATH="${NOVNC_WS_PATH:-websockify}"
+NOVNC_AUTOCONNECT="${NOVNC_AUTOCONNECT:-false}"
 APP_STATE_DIR="${APP_STATE_DIR:-/tmp/kioskuser}"
 FIREFOX_DISABLE_SANDBOX="${FIREFOX_DISABLE_SANDBOX:-true}"
 NOVNC_WEB_ROOT="${NOVNC_WEB_ROOT:-/usr/share/novnc}"
@@ -47,6 +42,7 @@ X11VNC_PID=""
 WEBSOCKIFY_PID=""
 TOR_PID=""
 TOR_WATCH_PID=""
+RUNTIME_NOVNC_ROOT=""
 
 cleanup() {
   set +e
@@ -63,7 +59,6 @@ mkdir -p "$VNC_DIR"
 x11vnc -storepasswd "${VNC_PASSWORD:-securepass}" "$VNC_DIR/passwd" >/dev/null
 
 # Xvfb cannot create this directory when running as non-root.
-# Root phase above is responsible for creating root-owned /tmp/.X11-unix.
 mkdir -p /tmp/.X11-unix || true
 
 # Openbox on Debian emits noisy menu warnings when this is unset.
@@ -106,20 +101,56 @@ sleep 1
 openbox &
 OPENBOX_PID=$!
 
-x11vnc -display "$DISPLAY" -rfbauth "$VNC_DIR/passwd" -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage -no6 &
+x11vnc \
+  -display "$DISPLAY" \
+  -rfbauth "$VNC_DIR/passwd" \
+  -rfbport "$VNC_PORT" \
+  -forever -shared -localhost -xkb -noxrecord -noxfixes -noxdamage -no6 &
 X11VNC_PID=$!
 sleep 1
 
-if [ ! -f "$NOVNC_WEB_ROOT/index.html" ]; then
-  if [ -f "$NOVNC_WEB_ROOT/vnc.html" ]; then
-    cp -f "$NOVNC_WEB_ROOT/vnc.html" "$NOVNC_WEB_ROOT/index.html"
-  elif [ -f "$NOVNC_WEB_ROOT/vnc_lite.html" ]; then
-    cp -f "$NOVNC_WEB_ROOT/vnc_lite.html" "$NOVNC_WEB_ROOT/index.html"
+RUNTIME_NOVNC_ROOT="${APP_STATE_DIR}/novnc_www"
+mkdir -p "$RUNTIME_NOVNC_ROOT"
+cp -a "${NOVNC_WEB_ROOT}/." "$RUNTIME_NOVNC_ROOT/"
+if [ ! -f "$RUNTIME_NOVNC_ROOT/index.html" ]; then
+  if [ -f "$RUNTIME_NOVNC_ROOT/vnc.html" ]; then
+    cp -f "$RUNTIME_NOVNC_ROOT/vnc.html" "$RUNTIME_NOVNC_ROOT/index.html"
+  elif [ -f "$RUNTIME_NOVNC_ROOT/vnc_lite.html" ]; then
+    cp -f "$RUNTIME_NOVNC_ROOT/vnc_lite.html" "$RUNTIME_NOVNC_ROOT/index.html"
   fi
 fi
+for path in health healthz ready live; do
+  printf "ok\n" > "$RUNTIME_NOVNC_ROOT/$path"
+done
 
-echo "noVNC UI path: http://${NOVNC_BIND}:${NOVNC_PORT}/vnc.html"
-websockify --web "$NOVNC_WEB_ROOT" "${NOVNC_BIND}:${NOVNC_PORT}" localhost:5900 &
+NOVNC_QUERY="resize=scale&path=${NOVNC_WS_PATH}"
+if [ "$NOVNC_AUTOCONNECT" = "true" ]; then
+  NOVNC_QUERY="autoconnect=1&${NOVNC_QUERY}"
+fi
+
+cat > "$RUNTIME_NOVNC_ROOT/index.html" <<EOF
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="refresh" content="0; url=/vnc.html?${NOVNC_QUERY}">
+  <title>noVNC</title>
+</head>
+<body>
+  <a href="/vnc.html?${NOVNC_QUERY}">Open noVNC</a>
+</body>
+</html>
+EOF
+
+for _ in $(seq 1 20); do
+  if (echo >"/dev/tcp/127.0.0.1/${VNC_PORT}") >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+
+echo "noVNC UI path: http://${NOVNC_BIND}:${NOVNC_PORT}/vnc.html?${NOVNC_QUERY}"
+websockify --web "$RUNTIME_NOVNC_ROOT" "${NOVNC_BIND}:${NOVNC_PORT}" "127.0.0.1:${VNC_PORT}" &
 WEBSOCKIFY_PID=$!
 
 if [ "$ENABLE_TOR" = "true" ]; then
